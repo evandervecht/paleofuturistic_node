@@ -1,0 +1,2 @@
+#!/bin/sh
+./workflow.cmd develop.pre-commit

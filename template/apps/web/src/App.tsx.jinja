@@ -1,0 +1,27 @@
+import { HEALTH_PATH, type HealthResponse } from '@{{ project_slug }}/shared';
+import { useEffect, useState } from 'react';
+
+export function App() {
+  const [count, setCount] = useState(0);
+  const [health, setHealth] = useState<HealthResponse | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(HEALTH_PATH, { signal: controller.signal })
+      .then((response) => (response.ok ? (response.json() as Promise<HealthResponse>) : null))
+      .then((data) => setHealth(data))
+      .catch(() => setHealth(null));
+    return () => controller.abort();
+  }, []);
+
+  return (
+    <main>
+      <h1>{{ project_name }}</h1>
+      <p>{{ project_description }}</p>
+      <button type="button" onClick={() => setCount((value) => value + 1)}>
+        count is {count}
+      </button>
+      <p data-testid="api-status">API: {health ? `${health.status} (${health.service})` : 'unreachable'}</p>
+    </main>
+  );
+}

@@ -1,0 +1,2 @@
+#!/bin/sh
+./workflow.cmd lint.commitlint --commit-msg-file "$1"

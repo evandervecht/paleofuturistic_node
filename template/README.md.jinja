@@ -1,0 +1,45 @@
+# {{ project_name }}
+
+{{ project_description }}
+
+Generated from the [paleofuturistic_node](https://github.com/schubergphilis/paleofuturistic_node) copier template:
+a pnpm workspace with a Fastify API, a Vite + React web app, and a shared types package —
+biome-linted, vitest-tested, vitepress-documented, with SBOM generation and release automation built in.
+
+## Getting started
+
+```sh
+./workflow.cmd bootstrap   # one-time setup: pnpm install, git hooks
+./workflow.cmd develop     # start the API (:3000) and web dev servers
+```
+
+## Workflow
+
+All commands are invoked via `./workflow.cmd <namespace>.<task>`:
+
+| Command | Description |
+|---------|-------------|
+| `./workflow.cmd format` | Format code and organize imports (biome) |
+| `./workflow.cmd lint` | Run all linters (biome, tsc, commitlint) |
+| `./workflow.cmd test` | Run all tests with coverage (vitest) |
+| `./workflow.cmd build` | Run security checks and build all packages |
+| `./workflow.cmd quality` | Run code quality analysis (knip) |
+| `./workflow.cmd secure` | Run security audit and generate SBOM |
+| `./workflow.cmd release -i <type>` | Bump version, tag, push, and open the release PR |
+| `./workflow.cmd document` | Build and view documentation (typedoc + vitepress) |
+| `./workflow.cmd container.build` | Build the production container image |
+| `./workflow.cmd develop.pre-commit` | Run all pre-commit hooks on the codebase |
+| `./workflow.cmd bootstrap --force` | Re-run the development environment setup |
+
+## Project layout
+
+```text
+apps/api          Fastify service (serves the web build in production)
+apps/web          Vite + React SPA
+packages/shared   Types/constants shared between api and web
+_CI               Zero-dependency workflow task runner
+docs              Diátaxis documentation (vitepress)
+```
+
+The full documentation lives in [docs/](docs/index.md) — start with
+[First-run setup](docs/tutorials/first-run-setup.md).

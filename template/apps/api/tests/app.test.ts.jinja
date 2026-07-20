@@ -1,0 +1,29 @@
+import { HEALTH_PATH } from '@{{ project_slug }}/shared';
+import type { FastifyInstance } from 'fastify';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { buildApp } from '../src/app.js';
+
+describe('app', () => {
+  let app: FastifyInstance;
+
+  beforeEach(() => {
+    app = buildApp();
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  it('reports healthy on the health endpoint', async () => {
+    const response = await app.inject({ method: 'GET', url: HEALTH_PATH });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ status: 'ok', service: '{{ project_slug }}-api' });
+  });
+
+  it('returns 404 for unknown routes', async () => {
+    const response = await app.inject({ method: 'GET', url: '/does-not-exist' });
+
+    expect(response.statusCode).toBe(404);
+  });
+});

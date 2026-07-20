@@ -1,0 +1,10 @@
+**/node_modules
+**/dist
+**/coverage
+reports
+docs
+.git
+.githooks
+_CI/.bootstrapped
+*.log
+.env

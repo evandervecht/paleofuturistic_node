@@ -1,0 +1,131 @@
+/** Security task definitions: vulnerability audit and SBOM generation. */
+
+import { mkdirSync, readFileSync } from 'node:fs';
+import process from 'node:process';
+{% if integrate_dependency_track -%}
+import {
+  IGNORE_PATTERN,
+  OWASP_DTRACK_SETTINGS,
+  PROJECT_NAME,
+  REPORTS_DIR,
+  SBOM_FILE,
+  SECURITY_OVERRIDE_ENV,
+  SECURITY_OVERRIDES_FILE,
+} from './configuration.mjs';
+{% else -%}
+import {
+  IGNORE_PATTERN,
+  PROJECT_NAME,
+  REPORTS_DIR,
+  SBOM_FILE,
+  SECURITY_OVERRIDE_ENV,
+  SECURITY_OVERRIDES_FILE,
+} from './configuration.mjs';
+{% endif -%}
+import { ExitError, execute, logged, pathExists, readRootPackage, runSteps } from './shared.mjs';
+
+/**
+ * Collect security override entries from the `.security-overrides` file and
+ * the `{{ '{{' }}SLUG{{ '}}' }}_SECURITY_OVERRIDE` environment variable. Entries take the
+ * form `<id>[::<YYYY-MM-DD>]`; expired entries are dropped with a warning.
+ */
+function readOverrides() {
+  const rawEntries = [];
+  if (pathExists(SECURITY_OVERRIDES_FILE)) {
+    for (const line of readFileSync(SECURITY_OVERRIDES_FILE, 'utf-8').split(/\r?\n/)) {
+      const entry = line.split('#', 1)[0].trim();
+      if (entry) {
+        rawEntries.push(entry);
+      }
+    }
+  }
+  const fromEnv = (process.env[SECURITY_OVERRIDE_ENV] ?? '').trim();
+  if (fromEnv) {
+    rawEntries.push(
+      ...fromEnv
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+    );
+  }
+  const active = [];
+  const today = new Date().toISOString().slice(0, 10);
+  for (const entry of rawEntries) {
+    const match = IGNORE_PATTERN.exec(entry);
+    if (!match) {
+      console.error(`Invalid security override entry: ${entry}`);
+      throw new ExitError(1);
+    }
+    const { vulnerabilityId, expirationDate } = match.groups;
+    if (expirationDate && expirationDate < today) {
+      console.log(`Security override for ${vulnerabilityId} expired on ${expirationDate} — ignoring.`);
+      continue;
+    }
+    active.push(vulnerabilityId);
+  }
+  return active;
+}
+
+/** Audit dependencies for known vulnerabilities (audit-ci over the pnpm lockfile). */
+export const audit = logged('secure.audit', () => {
+  const overrides = readOverrides();
+  const allowlist = overrides.length > 0 ? ` --allowlist ${overrides.join(' ')}` : '';
+  execute(`pnpm exec audit-ci --package-manager pnpm --moderate${allowlist}`);
+});
+
+/** Generate a CycloneDX SBOM for the workspace. */
+export const sbom = logged('secure.sbom', () => {
+  mkdirSync(REPORTS_DIR, { recursive: true });
+  execute(`pnpm exec cdxgen -t js --project-name ${PROJECT_NAME} -o ${SBOM_FILE} .`);
+});
+{% if integrate_dependency_track %}
+/** Upload the generated SBOM to OWASP Dependency Track. */
+export const sbomUpload = logged('secure.sbom-upload', async () => {
+  const missing = OWASP_DTRACK_SETTINGS.filter((name) => !process.env[name]);
+  if (missing.length > 0) {
+    console.error(`Missing Dependency Track environment variables: ${missing.join(', ')}.`);
+    throw new ExitError(1);
+  }
+  if (!pathExists(SBOM_FILE)) {
+    await sbom();
+  }
+  const payload = {
+    projectName: PROJECT_NAME,
+    projectVersion: readRootPackage().version,
+    autoCreate: true,
+    bom: readFileSync(SBOM_FILE).toString('base64'),
+  };
+  const url = `${process.env.OWASP_DTRACK_URL.replace(/\/$/, '')}/api/v1/bom`;
+  console.log(`Uploading SBOM to ${url}`);
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Api-Key': process.env.OWASP_DTRACK_API_KEY,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    console.error(`SBOM upload failed: ${response.status} ${await response.text()}`);
+    throw new ExitError(1);
+  }
+  console.log('SBOM uploaded successfully.');
+});
+{% endif %}
+/** Run the security audit and generate the SBOM; reports all failures before exiting. */
+export const secure = logged('secure', async () => {
+  await runSteps([audit, sbom]);
+});
+
+export const namespace = {
+  name: 'secure',
+  defaultTask: 'all',
+  tasks: {
+    all: { fn: secure, help: 'Run security audit and generate SBOM' },
+    audit: { fn: audit, help: 'Audit dependencies for known vulnerabilities' },
+    sbom: { fn: sbom, help: 'Generate a CycloneDX SBOM' },
+{%- if integrate_dependency_track %}
+    'sbom-upload': { fn: sbomUpload, help: 'Upload the SBOM to OWASP Dependency Track' },
+{%- endif %}
+  },
+};

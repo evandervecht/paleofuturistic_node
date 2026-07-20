@@ -1,0 +1,46 @@
+import process from 'node:process';
+import { defineConfig } from 'vitepress';
+
+export default defineConfig({
+  title: '{{ project_name }}',
+  description: '{{ project_description }}',
+  base: process.env.DOCS_BASE ?? '/',
+  ignoreDeadLinks: true,
+  themeConfig: {
+    nav: [
+      { text: 'Tutorials', link: '/tutorials/first-run-setup' },
+      { text: 'How-to', link: '/how-to/add-a-dependency' },
+      { text: 'Reference', link: '/reference/workflow-tasks' },
+      { text: 'Explanation', link: '/explanation/the-scaffold' },
+    ],
+    sidebar: [
+      {
+        text: 'Tutorials',
+        items: [
+          { text: 'First-run setup', link: '/tutorials/first-run-setup' },
+          { text: 'Make your first release', link: '/tutorials/make-your-first-release' },
+        ],
+      },
+      {
+        text: 'How-to guides',
+        items: [
+          { text: 'Add a dependency', link: '/how-to/add-a-dependency' },
+          { text: 'Triage a security finding', link: '/how-to/triage-a-security-finding' },
+          { text: 'Build and push a container', link: '/how-to/build-and-push-a-container' },
+        ],
+      },
+      {
+        text: 'Reference',
+        items: [
+          { text: 'Workflow tasks', link: '/reference/workflow-tasks' },
+          { text: 'Configuration files', link: '/reference/configuration-files' },
+          { text: 'Changelog', link: '/reference/changelog' },
+        ],
+      },
+      {
+        text: 'Explanation',
+        items: [{ text: 'The scaffold', link: '/explanation/the-scaffold' }],
+      },
+    ],
+  },
+});

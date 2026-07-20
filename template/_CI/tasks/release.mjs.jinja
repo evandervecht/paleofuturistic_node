@@ -1,0 +1,271 @@
+/** Release task definitions. */
+
+import { existsSync, rmSync } from 'node:fs';
+import { build } from './build.mjs';
+import { SBOM_FILE } from './configuration.mjs';
+import { publish as containerPublish } from './container.mjs';
+import { createReleasePr, prCreateUrl } from './{{ git_hosting_service }}.mjs';
+{%- if integrate_dependency_track %}
+import { sbomUpload } from './secure.mjs';
+{%- endif %}
+import { capture, ExitError, execute, logged } from './shared.mjs';
+
+const PRERELEASE_TYPES = ['alpha', 'beta', 'rc'];
+const SEMVER_TYPES = ['major', 'minor', 'patch'];
+
+function bumpCommand(increment, extraFlags = '') {
+  const valid = [...SEMVER_TYPES, ...PRERELEASE_TYPES];
+  if (!valid.includes(increment)) {
+    console.error('Usage: ./workflow.cmd release -i <increment>');
+    console.error(`  increment: ${valid.join(', ')}`);
+    throw new ExitError(1);
+  }
+  const base = PRERELEASE_TYPES.includes(increment)
+    ? `pnpm exec commit-and-tag-version --release-as patch --prerelease ${increment}`
+    : `pnpm exec commit-and-tag-version --release-as ${increment}`;
+  return extraFlags ? `${base} ${extraFlags}` : base;
+}
+
+/**
+ * Ensure the working tree is clean and in sync with origin before releasing.
+ *
+ * Fails if there are staged, unstaged, or untracked files; if the current
+ * branch has no upstream configured; or if the local branch is ahead of or
+ * behind origin after a fetch.
+ */
+export const validate = logged('release.validate', () => {
+  const status = capture('git status --porcelain');
+  if (!status.ok) {
+    console.error('Could not determine git status.');
+    throw new ExitError(1);
+  }
+  if (status.stdout.trim()) {
+    console.error('Working tree is dirty. Commit, stash, or discard these changes before releasing:');
+    console.error(status.stdout);
+    throw new ExitError(1);
+  }
+
+  const fetch = capture('git fetch --quiet origin');
+  if (!fetch.ok) {
+    console.error('Could not fetch origin. Check your remote connection before releasing.');
+    if (fetch.stderr) {
+      console.error(fetch.stderr.trim());
+    }
+    throw new ExitError(1);
+  }
+
+  const upstream = capture('git rev-parse --abbrev-ref @{upstream}');
+  if (!upstream.ok) {
+    console.error(
+      'Current branch has no upstream configured. Set one with `git push -u origin <branch>` before releasing.',
+    );
+    throw new ExitError(1);
+  }
+
+  const counts = capture('git rev-list --left-right --count @{upstream}...HEAD');
+  if (!counts.ok) {
+    console.error('Could not compare local branch with upstream.');
+    throw new ExitError(1);
+  }
+  const [behind, ahead] = counts.stdout.trim().split(/\s+/).map(Number);
+
+  if (ahead > 0) {
+    const aheadLog = capture('git log --oneline @{upstream}..HEAD');
+    console.error(`You have ${ahead} unpushed commit(s) on this branch. Push them before releasing:`);
+    if (aheadLog.stdout.trim()) {
+      console.error(aheadLog.stdout.trimEnd());
+    }
+    throw new ExitError(1);
+  }
+
+  if (behind > 0) {
+    console.error(
+      `Your branch is ${behind} commit(s) behind \`${upstream.stdout.trim()}\`. ` +
+        'Pull the latest changes before releasing.',
+    );
+    throw new ExitError(1);
+  }
+});
+
+/** Bump the version, write the changelog, commit, and tag (-i major|minor|patch|alpha|beta|rc). */
+export const bump = logged('release.bump', (options = {}) => {
+  execute(bumpCommand(options.increment ?? ''));
+});
+
+/** Print the changelog that the next release would generate, without writing anything. */
+export const changelog = logged('release.changelog', (options = {}) => {
+  execute(bumpCommand(options.increment ?? 'patch', '--dry-run'));
+});
+
+/** Push the bump commit and tag to the remote. */
+export const push = logged('release.push', () => {
+  execute('git push');
+  execute('git push --tags');
+});
+
+/**
+ * Project the next version via a dry run and parse it out.
+ *
+ * Throws ExitError if the increment is invalid or output cannot be parsed.
+ */
+function resolveNextVersion(increment) {
+  const result = capture(bumpCommand(increment, '--dry-run'));
+  if (!result.ok) {
+    console.error('Could not determine the next version (commit-and-tag-version --dry-run failed).');
+    console.error(result.stdout);
+    console.error(result.stderr);
+    throw new ExitError(1);
+  }
+  const output = `${result.stdout}\n${result.stderr}`;
+  const match = /tagging release v?(\S+)/.exec(output);
+  if (!match) {
+    console.error('Could not parse the next version from commit-and-tag-version --dry-run output:');
+    console.error(output);
+    throw new ExitError(1);
+  }
+  return match[1];
+}
+
+/**
+ * Fail with removal instructions when a ref exists locally and/or on origin.
+ *
+ * `existsLocally`/`existsOnOrigin` describe where the ref was found;
+ * `removeRemoteCmd`/`removeLocalCmd` are the copy-pasteable cleanup commands.
+ */
+function reportExistingRef({ refDescription, existsLocally, existsOnOrigin, removeRemoteCmd, removeLocalCmd, hint }) {
+  if (!existsLocally && !existsOnOrigin) {
+    return;
+  }
+  const locations = [];
+  if (existsLocally) {
+    locations.push('locally');
+  }
+  if (existsOnOrigin) {
+    locations.push('on origin');
+  }
+  console.error(`${refDescription} already exists ${locations.join(' and ')}. ${hint}`);
+  if (existsOnOrigin) {
+    console.error(`  ${removeRemoteCmd}`);
+  }
+  if (existsLocally) {
+    console.error(`  ${removeLocalCmd}`);
+  }
+  throw new ExitError(1);
+}
+
+/**
+ * Abort before any git mutation if the target tag or branch already exists.
+ *
+ * Checks both local and origin copies so a stale ref on either side halts
+ * the release cleanly — rather than failing partway through and leaving a
+ * bump commit behind without a tag.
+ */
+function ensureRefsAreFree(newVersion, releaseBranch) {
+  const tagRef = `v${newVersion}`;
+  reportExistingRef({
+    refDescription: `Tag \`${tagRef}\``,
+    existsLocally: capture(`git tag --list ${tagRef}`).stdout.trim().length > 0,
+    existsOnOrigin: capture(`git ls-remote --tags origin refs/tags/${tagRef}`).stdout.trim().length > 0,
+    removeRemoteCmd: `git push origin :refs/tags/${tagRef}`,
+    removeLocalCmd: `git tag -d ${tagRef}`,
+    hint: 'Bump to a different version, or remove the tag everywhere before retrying:',
+  });
+  reportExistingRef({
+    refDescription: `Branch \`${releaseBranch}\``,
+    existsLocally: capture(`git show-ref --verify --quiet refs/heads/${releaseBranch}`).ok,
+    existsOnOrigin: capture(`git ls-remote --heads origin refs/heads/${releaseBranch}`).stdout.trim().length > 0,
+    removeRemoteCmd: `git push origin --delete ${releaseBranch}`,
+    removeLocalCmd: `git branch -D ${releaseBranch}`,
+    hint: 'Remove it everywhere before retrying:',
+  });
+}
+
+/**
+ * Build and publish the released artefacts — the full post-release pipeline.
+ *
+ * Runs the security checks and build, then builds and pushes the container
+ * image{% if integrate_dependency_track %} and uploads the SBOM to Dependency Track{% endif %}.
+ */
+export const publish = logged('release.publish', async () => {
+  await clean();
+  await build();
+  await containerPublish();
+{%- if integrate_dependency_track %}
+  await sbomUpload();
+{%- endif %}
+});
+
+/**
+ * Prepare a release on a new `release/<version>` branch.
+ *
+ * Validates a clean tree on `main`, branches off, bumps the version, writes
+ * the changelog, and pushes both the branch and the new tag so the resulting
+ * pull request carries the full release snapshot for review. Publish fires
+ * from CI once the PR is merged into main.
+ */
+export const release = logged('release', async (options = {}) => {
+  await validate();
+
+  const current = capture('git rev-parse --abbrev-ref HEAD');
+  if (!current.ok) {
+    console.error('Could not determine the current branch.');
+    throw new ExitError(1);
+  }
+  const currentBranch = current.stdout.trim();
+  if (currentBranch !== 'main') {
+    console.error(`Releases must start from \`main\` (currently on \`${currentBranch}\`).`);
+    throw new ExitError(1);
+  }
+
+  const increment = options.increment ?? '';
+  const newVersion = resolveNextVersion(increment);
+  const releaseBranch = `release/${newVersion}`;
+  ensureRefsAreFree(newVersion, releaseBranch);
+
+  execute(`git checkout -b ${releaseBranch}`);
+  await bump({ increment });
+
+  if (options.noPush) {
+    console.log(`Skipping push. Branch \`${releaseBranch}\` and tag \`v${newVersion}\` stay local.`);
+    return;
+  }
+
+  execute(`git push -u origin ${releaseBranch}`);
+  execute(`git push origin v${newVersion}`);
+
+  const prUrl = createReleasePr(releaseBranch, newVersion);
+  if (prUrl) {
+    console.log();
+    console.log(`Release pull request opened: ${prUrl}`);
+    return;
+  }
+  const manualUrl = prCreateUrl(releaseBranch);
+  if (manualUrl) {
+    console.log();
+    console.log(`Open the release pull request manually: ${manualUrl}`);
+  }
+});
+
+/** Remove build artifacts (workspace dist/ directories and the SBOM). */
+export const clean = logged('release.clean', () => {
+  for (const path of ['apps/api/dist', 'apps/web/dist', SBOM_FILE]) {
+    if (existsSync(path)) {
+      rmSync(path, { recursive: true, force: true });
+      console.log(`Removed ${path}`);
+    }
+  }
+});
+
+export const namespace = {
+  name: 'release',
+  defaultTask: 'all',
+  tasks: {
+    all: { fn: release, help: 'Bump version, tag, push, and open the release PR (-i <increment>)' },
+    validate: { fn: validate, help: 'Check the tree is clean and in sync with origin' },
+    bump: { fn: bump, help: 'Bump version, write changelog, commit, and tag' },
+    changelog: { fn: changelog, help: 'Preview the changelog for the next release' },
+    push: { fn: push, help: 'Push the bump commit and tag' },
+    publish: { fn: publish, help: 'Build and publish released artefacts (CI)' },
+    clean: { fn: clean, help: 'Remove build artifacts' },
+  },
+};

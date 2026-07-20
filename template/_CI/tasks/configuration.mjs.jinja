@@ -1,0 +1,19 @@
+/** Centralized constants for CI task definitions. */
+
+export const PROJECT_NAME = '{{ project_slug }}';
+
+export const SECURITY_OVERRIDE_ENV = '{{ project_slug | upper | replace("-", "_") | replace(".", "_") }}_SECURITY_OVERRIDE';
+export const SECURITY_OVERRIDES_FILE = '.security-overrides';
+
+export const REPORTS_DIR = 'reports';
+export const SBOM_FILE = 'reports/sbom.cdx.json';
+
+export const IMAGE_NAME = '{{ project_slug }}';
+
+export const IGNORE_PATTERN = /^(?<vulnerabilityId>[A-Za-z0-9\-_]+)(::(?<expirationDate>\d{4}-\d{2}-\d{2}))?$/;
+
+{% if integrate_dependency_track -%}
+export const OWASP_DTRACK_SETTINGS = ['OWASP_DTRACK_URL', 'OWASP_DTRACK_API_KEY'];
+
+{% endif -%}
+export const SENTINEL = '_CI/.bootstrapped';

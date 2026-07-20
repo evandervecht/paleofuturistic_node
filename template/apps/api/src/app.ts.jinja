@@ -1,0 +1,39 @@
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+import process from 'node:process';
+import fastifyStatic from '@fastify/static';
+import { HEALTH_PATH, type HealthResponse } from '@{{ project_slug }}/shared';
+import Fastify, { type FastifyInstance } from 'fastify';
+
+export interface BuildAppOptions {
+  /** Directory of static web assets to serve (production). Defaults to $PUBLIC_DIR. */
+  publicDir?: string;
+  logger?: boolean;
+}
+
+/** Build the Fastify application without binding it to a port (testable via inject). */
+export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
+  const app = Fastify({ logger: options.logger ?? false });
+
+  app.get(HEALTH_PATH, async (): Promise<HealthResponse> => {
+    return {
+      status: 'ok',
+      service: '{{ project_slug }}-api',
+      timestamp: new Date().toISOString(),
+    };
+  });
+
+  const publicDir = options.publicDir ?? process.env.PUBLIC_DIR;
+  if (publicDir && existsSync(publicDir)) {
+    app.register(fastifyStatic, { root: path.resolve(publicDir) });
+    // SPA fallback: unknown non-API GET routes serve the web app's index.html.
+    app.setNotFoundHandler((request, reply) => {
+      if (request.method === 'GET' && !request.url.startsWith('/api/')) {
+        return reply.sendFile('index.html');
+      }
+      return reply.code(404).send({ message: 'Not Found' });
+    });
+  }
+
+  return app;
+}

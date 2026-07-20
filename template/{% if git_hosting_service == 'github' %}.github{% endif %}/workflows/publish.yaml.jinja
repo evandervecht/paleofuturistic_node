@@ -1,0 +1,39 @@
+{% raw -%}
+name: Publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    name: Publish release artefacts
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      CONTAINER_REGISTRY: ghcr.io/${{ github.repository_owner }}
+{%- endraw %}
+{%- if integrate_dependency_track %}
+{% raw %}      OWASP_DTRACK_URL: ${{ secrets.OWASP_DTRACK_URL }}
+      OWASP_DTRACK_API_KEY: ${{ secrets.OWASP_DTRACK_API_KEY }}{% endraw %}
+{%- endif %}
+{% raw %}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Log in to the container registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and publish
+        run: ./workflow.cmd release.publish
+{%- endraw %}
