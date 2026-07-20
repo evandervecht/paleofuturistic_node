@@ -1,0 +1,48 @@
+/** Documentation task definitions. */
+
+import { execute, isCi, logged, openCommand, runSteps } from './shared.mjs';
+
+/** Generate the API reference into docs/reference/api with typedoc. */
+export const apiReference = logged('document.api-reference', () => {
+  execute('pnpm exec typedoc');
+});
+
+/** Build the documentation site (API reference + vitepress). */
+export const buildDocs = logged('document.build', async () => {
+  await apiReference();
+  execute('pnpm exec vitepress build docs');
+});
+
+/** Serve the documentation locally with live reload. */
+export const serve = logged('document.serve', async () => {
+  await apiReference();
+  execute('pnpm exec vitepress dev docs --open');
+});
+{% if integrate_pages and git_hosting_service == 'github' %}
+/** Build the docs site for GitHub Pages (invoked by the pages workflow). */
+export const deployGithub = logged('document.deploy-github', async () => {
+  await buildDocs();
+  console.log('Site built at docs/.vitepress/dist — the pages workflow uploads and deploys it.');
+});
+{% endif %}
+/** Build the documentation and open it in the default browser. */
+export const document = logged('document', async () => {
+  await buildDocs();
+  if (!isCi()) {
+    await runSteps([logged('document.open', () => execute(`${openCommand()} docs/.vitepress/dist/index.html`))]);
+  }
+});
+
+export const namespace = {
+  name: 'document',
+  defaultTask: 'all',
+  tasks: {
+    all: { fn: document, help: 'Build and view documentation (typedoc + vitepress)' },
+    'api-reference': { fn: apiReference, help: 'Generate the API reference (typedoc)' },
+    build: { fn: buildDocs, help: 'Build the documentation site' },
+    serve: { fn: serve, help: 'Serve the documentation locally with live reload' },
+{%- if integrate_pages and git_hosting_service == 'github' %}
+    'deploy-github': { fn: deployGithub, help: 'Build the docs site for GitHub Pages' },
+{%- endif %}
+  },
+};

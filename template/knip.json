@@ -1,0 +1,27 @@
+{
+  "workspaces": {
+    ".": {
+      "entry": ["_CI/workflow.mjs", "_CI/tasks/*.mjs"],
+      "project": ["_CI/**/*.mjs"],
+      "ignoreDependencies": [
+        "@biomejs/biome",
+        "@commitlint/cli",
+        "@cyclonedx/cdxgen",
+        "audit-ci",
+        "commit-and-tag-version",
+        "vitepress"
+      ]
+    },
+    "apps/api": {
+      "entry": ["tests/**/*.test.ts"],
+      "project": ["src/**", "tests/**"]
+    },
+    "apps/web": {
+      "entry": ["tests/**/*.test.tsx"],
+      "project": ["src/**", "tests/**"]
+    },
+    "packages/shared": {
+      "project": ["src/**"]
+    }
+  }
+}

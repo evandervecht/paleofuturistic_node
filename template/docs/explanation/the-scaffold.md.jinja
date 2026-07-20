@@ -1,0 +1,47 @@
+# The scaffold
+
+{{ project_name }} was generated from the paleofuturistic_node copier template.
+This page explains the moving parts so you can bend them with intent.
+
+## The workflow launcher
+
+`workflow.cmd` is a polyglot launcher: the same file runs under `sh` on
+Unix/macOS and under `cmd.exe` on Windows. It delegates to
+`_CI/workflow.mjs`, a task runner written against the Node standard library
+only — it works before `pnpm install` has ever run, which is what lets the
+bootstrap be a task like any other.
+
+Tasks live in `_CI/tasks/`, one module per namespace. Adding a task means
+exporting a function and registering it in the module's `namespace` object;
+new namespaces are registered in `_CI/tasks/index.mjs`.
+
+## The workspace
+
+The repo is a pnpm workspace with three packages:
+
+- `apps/api` — a Fastify service. `buildApp()` is separated from the listening
+  entry point so tests use Fastify's `inject()` without binding a port. In
+  production it also serves the built web app as static assets.
+- `apps/web` — a Vite + React SPA. The dev server proxies `/api` to the API.
+- `packages/shared` — types and constants consumed by both sides directly from
+  source; the API build bundles it, so nothing needs a build order.
+
+## The quality gates
+
+- **biome** covers formatting, linting (including cognitive complexity), and
+  import organization in a single fast tool.
+- **tsc** runs per package in strict mode, purely for type checking.
+- **vitest** runs per package with v8 coverage.
+- **knip** keeps the dependency graph honest by flagging unused files,
+  exports, and dependencies.
+- **audit-ci** gates on known vulnerabilities, with expiring allowlist
+  entries in `.security-overrides`.
+- **cdxgen** produces a CycloneDX SBOM for every build{% if integrate_dependency_track %}, which
+  `secure.sbom-upload` pushes to OWASP Dependency Track{% endif %}.
+
+## Releases
+
+Conventional commits drive everything: `commitlint` enforces the format,
+`commit-and-tag-version` computes the next version and writes the changelog,
+and the release task wraps it in a validated branch-and-PR flow. Publishing
+happens from CI when the release tag lands.

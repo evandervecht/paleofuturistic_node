@@ -1,0 +1,33 @@
+import { render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { App } from '../src/App';
+
+describe('App', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ ok: false } as Response)),
+    );
+  });
+
+  it('renders the project title', async () => {
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('{{ project_name }}');
+  });
+
+  it('reports the API as unreachable when the health call fails', async () => {
+    render(<App />);
+
+    expect(await screen.findByTestId('api-status')).toHaveTextContent('unreachable');
+  });
+
+  it('increments the counter on click', async () => {
+    const { getByRole } = render(<App />);
+
+    const button = getByRole('button');
+    button.click();
+
+    expect(await screen.findByRole('button')).toHaveTextContent('count is 1');
+  });
+});

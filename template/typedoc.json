@@ -1,0 +1,9 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["packages/shared/src/index.ts"],
+  "tsconfig": "packages/shared/tsconfig.json",
+  "plugin": ["typedoc-plugin-markdown"],
+  "out": "docs/reference/api",
+  "readme": "none",
+  "excludePrivate": true
+}

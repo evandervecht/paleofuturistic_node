@@ -1,0 +1,33 @@
+# Workflow tasks
+
+All commands are invoked via `./workflow.cmd <namespace>[.<task>] [options]`.
+Bare namespaces run their default task (e.g. `./workflow.cmd lint` runs
+`lint.all`). Every command runs the bootstrap pre-task first.
+
+| Command | Description |
+|---------|-------------|
+| `./workflow.cmd bootstrap [--force]` | One-time development environment setup |
+| `./workflow.cmd develop` | Start the API and web dev servers in parallel |
+| `./workflow.cmd develop.pre-commit` | Run all pre-commit checks on the codebase |
+| `./workflow.cmd format` | Format code and organize imports (biome) |
+| `./workflow.cmd lint` | Run all linters (biome, tsc, commitlint) |
+| `./workflow.cmd lint.types` | Type-check every workspace package |
+| `./workflow.cmd test` | Run all tests with coverage (vitest) |
+| `./workflow.cmd test.api` / `test.web` | Run one app's test suite |
+| `./workflow.cmd build` | Run security checks and build all packages |
+| `./workflow.cmd quality` | Run code quality analysis (knip) |
+| `./workflow.cmd secure` | Run security audit and generate the SBOM |
+{%- if integrate_dependency_track %}
+| `./workflow.cmd secure.sbom-upload` | Upload the SBOM to OWASP Dependency Track |
+{%- endif %}
+| `./workflow.cmd release -i <type>` | Bump, tag, push, and open the release PR |
+| `./workflow.cmd release.publish` | Build and publish released artefacts (CI) |
+| `./workflow.cmd container.build` | Build the application container image |
+| `./workflow.cmd container.publish` | Push the image to `$CONTAINER_REGISTRY` |
+| `./workflow.cmd document` | Build and view the documentation |
+| `./workflow.cmd document.serve` | Serve the docs locally with live reload |
+{%- if integrate_pages and git_hosting_service == 'github' %}
+| `./workflow.cmd document.deploy-github` | Build the docs site for GitHub Pages |
+{%- endif %}
+
+Run `./workflow.cmd` with no arguments for the full task list.

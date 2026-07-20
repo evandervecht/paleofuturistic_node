@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+reports/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+docs/reference/api/
+_CI/.bootstrapped
+*.log
+.env
+.DS_Store

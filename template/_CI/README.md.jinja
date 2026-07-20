@@ -1,0 +1,16 @@
+# _CI — workflow task runner
+
+This directory carries the {{ project_name }} workflow tooling: a task runner
+written against the Node standard library only, so it works before
+`pnpm install` has ever run.
+
+- `workflow.mjs` — the dispatcher behind `./workflow.cmd`
+- `tasks/` — one module per namespace (`format`, `lint`, `test`, `build`,
+  `quality`, `secure`, `release`, `document`, `container`, `develop`,
+  `bootstrap`)
+- `tasks/configuration.mjs` — centralized constants
+- `tasks/shared.mjs` — process execution, logging, and platform helpers
+
+Add a task by exporting a function from the matching module and registering it
+in that module's `namespace` object. Add a namespace by creating a module and
+registering it in `tasks/index.mjs`.

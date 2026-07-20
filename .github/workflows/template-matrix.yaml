@@ -1,0 +1,65 @@
+name: Template Matrix
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  invariants:
+    name: Invariants
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Run template invariants
+        run: ./workflow.cmd test.invariants
+
+  list-combos:
+    name: List matrix combos
+    runs-on: ubuntu-latest
+    outputs:
+      combos: ${{ steps.combos.outputs.combos }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Emit combos as JSON
+        id: combos
+        run: echo "combos=$(./workflow.cmd test.list-combos --as-json)" >> "$GITHUB_OUTPUT"
+
+  combo:
+    name: QA ${{ matrix.cell.label }}
+    needs: list-combos
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cell: ${{ fromJSON(needs.list-combos.outputs.combos) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Run combo QA
+        run: >-
+          ./workflow.cmd test.combo
+          --git-hosting-service ${{ matrix.cell.git_hosting_service }}
+          --integrate-dependency-track ${{ matrix.cell.integrate_dependency_track }}
+          --integrate-pages ${{ matrix.cell.integrate_pages }}

@@ -1,0 +1,48 @@
+image: node:{{ node_version }}
+
+stages:
+  - lint
+  - test
+  - build
+
+default:
+  before_script:
+    - corepack enable pnpm
+    - pnpm config set store-dir .pnpm-store
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+
+lint:
+  stage: lint
+  script:
+    - ./workflow.cmd lint
+
+test:
+  stage: test
+  script:
+    - ./workflow.cmd test
+
+quality:
+  stage: test
+  script:
+    - ./workflow.cmd quality
+
+build:
+  stage: build
+  script:
+    - ./workflow.cmd build
+{%- if integrate_dependency_track %}
+
+# Runs on version tags: builds and uploads the SBOM to OWASP Dependency Track.
+# Requires OWASP_DTRACK_URL and OWASP_DTRACK_API_KEY CI/CD variables.
+sbom-upload:
+  stage: build
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v/
+  script:
+    - ./workflow.cmd secure.sbom-upload
+{%- endif %}

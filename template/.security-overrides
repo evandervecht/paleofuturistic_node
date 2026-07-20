@@ -1,0 +1,5 @@
+# Security findings to allowlist, one per line.
+# Format: <advisory-id-or-module>[::<YYYY-MM-DD expiration>]
+# Entries are passed to audit-ci's --allowlist; expired entries are dropped.
+# Example:
+# GHSA-xxxx-xxxx-xxxx::2026-12-31  # transitive in vitest, fix pending upstream

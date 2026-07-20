@@ -1,0 +1,27 @@
+[project]
+name = "paleofuturistic-node-template"
+version = "0.0.0"
+description = "Copier template that generates enterprise-ready Node/React monorepos"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    {include-group = "test"},
+    "pyyaml",
+]
+test = [
+    "pytest",
+    "pytest-xdist",
+    "pyyaml",
+]
+
+[tool.pytest.ini_options]
+addopts = ["--strict-markers"]
+testpaths = ["tests"]
+
+[tool.uv]
+# Template generation shells out to `uvx copier`; the dev group only carries the
+# invariants suite and the matrix runner helpers.
+package = false

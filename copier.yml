@@ -1,0 +1,78 @@
+_subdirectory: template
+_answers_file: .copier-answers.yml
+# _templates_suffix defaults to ".jinja"; we rely on that. Files lacking the suffix
+# are copied verbatim (static configs, hook scripts, licenses), which removes the
+# need for a copy-without-render exclusion list.
+
+_tasks:
+  - command: >-
+      {{ _copier_python }} {{ _copier_conf.src_path }}/tasks_render.py
+      --license "{{ license }}"
+      --author "{{ full_name }}"
+    when: "{{ _copier_operation == 'copy' }}"
+
+project_name:
+  type: str
+  default: "Paleofuturistic Node Project"
+  help: A descriptive name for the project
+
+project_slug:
+  type: str
+  default: "{{ project_name|lower|replace(' ', '-')|replace('_', '-') }}"
+  help: The slugified name for the project (used as the npm workspace scope)
+  validator: >-
+    {% if not (project_slug | regex_search('^[a-z0-9][a-z0-9._-]*$')) %}
+    project_slug must be a valid npm package name (lowercase letters, digits, ., _, -)
+    {% endif %}
+
+project_description:
+  type: str
+  default: "Development flow as Paleofuturistic Node"
+  help: Provide a short, clear description
+
+full_name:
+  type: str
+  default: "John Doe"
+  help: What is the owner's full name
+
+email:
+  type: str
+  default: "me@here.now"
+  help: What is the owner's email
+
+node_version:
+  type: str
+  choices:
+    - "20"
+    - "22"
+    - "24"
+  default: "22"
+  help: Node.js major version the project targets (pinned in .node-version and engines)
+
+license:
+  type: str
+  choices:
+    - "Apache-2.0"
+    - "MIT"
+    - "BSD-3-Clause"
+    - "None"
+  default: "Apache-2.0"
+  help: Which license to apply (None ships no LICENSE file)
+
+git_hosting_service:
+  type: str
+  choices:
+    - "github"
+    - "gitlab"
+  default: "github"
+  help: Which git hosting service the project targets
+
+integrate_dependency_track:
+  type: bool
+  default: true
+  help: Integrate OWASP Dependency Track for SBOM upload?
+
+integrate_pages:
+  type: bool
+  default: true
+  help: Integrate GitHub Pages for documentation deployment?

@@ -1,0 +1,49 @@
+/** GitLab-specific helpers for the release flow. */
+
+import { capture, which } from './shared.mjs';
+
+/** Derive the https://gitlab.com/<group>/<project> web URL from the origin remote. */
+function originWebUrl() {
+  const remote = capture('git remote get-url origin');
+  if (!remote.ok) {
+    return '';
+  }
+  const url = remote.stdout.trim();
+  const sshMatch = /^git@([^:]+):(.+?)(\.git)?$/.exec(url);
+  if (sshMatch) {
+    return `https://${sshMatch[1]}/${sshMatch[2]}`;
+  }
+  return url.replace(/\.git$/, '');
+}
+
+/**
+ * Open a release merge request with the `glab` CLI when available.
+ * Returns the MR URL, or an empty string when glab is missing or fails.
+ */
+export function createReleasePr(releaseBranch, newVersion) {
+  if (!which('glab')) {
+    console.log('glab CLI not found — skipping automatic merge request creation.');
+    return '';
+  }
+  const result = capture(
+    `glab mr create --source-branch ${releaseBranch} --target-branch main ` +
+      `--title "chore(release): v${newVersion}" ` +
+      `--description "Automated release MR for v${newVersion}. Merging publishes the release from CI."`,
+  );
+  if (!result.ok) {
+    console.log('glab mr create failed:');
+    console.log(result.stderr.trim());
+    return '';
+  }
+  const match = /https?:\/\/\S+/.exec(result.stdout);
+  return match ? match[0] : result.stdout.trim();
+}
+
+/** Build the manual merge-request-creation URL for the release branch. */
+export function prCreateUrl(releaseBranch) {
+  const base = originWebUrl();
+  if (!base) {
+    return '';
+  }
+  return `${base}/-/merge_requests/new?merge_request%5Bsource_branch%5D=${encodeURIComponent(releaseBranch)}`;
+}

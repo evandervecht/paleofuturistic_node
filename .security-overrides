@@ -1,0 +1,4 @@
+# Security findings to allowlist while testing the template, one per line.
+# Format: <advisory-id-or-module>[::<YYYY-MM-DD expiration>]
+# Example:
+# GHSA-xxxx-xxxx-xxxx::2026-12-31  # transitive in vitest, fix pending upstream

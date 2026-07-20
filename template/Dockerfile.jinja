@@ -1,0 +1,29 @@
+# Multi-stage build: compile the workspace, then ship a pruned production image
+# in which the API serves the built web app as static assets.
+
+FROM node:{{ node_version }}-alpine AS build
+WORKDIR /app
+RUN corepack enable pnpm
+
+# Install with a warm layer cache: manifests first, sources second.
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+COPY apps/api/package.json apps/api/
+COPY apps/web/package.json apps/web/
+COPY packages/shared/package.json packages/shared/
+RUN pnpm install --frozen-lockfile
+
+COPY . .
+RUN pnpm --recursive run build
+RUN pnpm --filter ./apps/api deploy --prod /out/api
+
+FROM node:{{ node_version }}-alpine
+ENV NODE_ENV=production \
+    PUBLIC_DIR=/app/public \
+    HOST=0.0.0.0 \
+    PORT=3000
+WORKDIR /app
+COPY --from=build /out/api /app
+COPY --from=build /app/apps/web/dist /app/public
+EXPOSE 3000
+USER node
+CMD ["node", "dist/server.js"]
