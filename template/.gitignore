@@ -9,3 +9,5 @@ _CI/.bootstrapped
 *.log
 .env
 .DS_Store
+.recall/
+.serena/

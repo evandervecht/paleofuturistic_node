@@ -47,6 +47,31 @@ export function getOperatingSystem() {
   throw new ExitError(1);
 }
 
+/**
+ * Return `url` with any `user:password@` userinfo removed from its authority.
+ *
+ * CI checkouts bake a token into the `origin` remote — for example
+ * `https://x-access-token:<token>@github.com/owner/repo.git`. Anything that reads
+ * the remote back and prints or publishes it (release PR links, SBOM references)
+ * must drop the credential first. Only the authority is inspected, so an `@`
+ * elsewhere in the URL (a path or query) is left alone, and URLs without
+ * userinfo are returned unchanged.
+ */
+export function stripCredentials(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return url;
+  }
+  if (!parsed.username && !parsed.password) {
+    return url;
+  }
+  parsed.username = '';
+  parsed.password = '';
+  return parsed.toString();
+}
+
 /** Return true when an executable is resolvable on PATH. */
 export function which(binary) {
   const probe = process.platform === 'win32' ? 'where' : 'command -v';
