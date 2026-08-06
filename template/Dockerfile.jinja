@@ -1,7 +1,12 @@
+{%- set node_alpine_digests = {
+  "20": "sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293",
+  "22": "sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32",
+  "24": "sha256:d32cdf619f63fe0471182d08996dd516c6275bb5fd31ae06e55a570bd9e1ad43",
+} %}
 # Multi-stage build: compile the workspace, then ship a pruned production image
 # in which the API serves the built web app as static assets.
 
-FROM node:{{ node_version }}-alpine AS build
+FROM node:{{ node_version }}-alpine@{{ node_alpine_digests[node_version] }} AS build
 WORKDIR /app
 RUN corepack enable pnpm
 
@@ -16,7 +21,7 @@ COPY . .
 RUN pnpm --recursive run build
 RUN pnpm --filter ./apps/api deploy --prod /out/api
 
-FROM node:{{ node_version }}-alpine
+FROM node:{{ node_version }}-alpine@{{ node_alpine_digests[node_version] }}
 ENV NODE_ENV=production \
     PUBLIC_DIR=/app/public \
     HOST=0.0.0.0 \

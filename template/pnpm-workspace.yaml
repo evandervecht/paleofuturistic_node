@@ -8,8 +8,10 @@ allowBuilds:
 
 # Transitive dependencies with known advisories, forced to patched versions
 # until the parent packages (@cyclonedx/cdxgen -> tar,
-# commit-and-tag-version -> dotgitignore -> minimatch -> brace-expansion)
+# commit-and-tag-version -> dotgitignore -> minimatch -> brace-expansion,
+# @cyclonedx/cdxgen -> undici / @cyclonedx/cdxgen -> cheerio -> undici)
 # bump their own ranges.
 overrides:
   tar: ^7.5.22
   brace-expansion: ^5.0.8
+  undici: ^7.29.0

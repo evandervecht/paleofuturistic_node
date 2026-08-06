@@ -1,6 +1,6 @@
 /** GitLab-specific helpers for the release flow. */
 
-import { capture, which } from './shared.mjs';
+import { capture, stripCredentials, which } from './shared.mjs';
 
 /** Derive the https://gitlab.com/<group>/<project> web URL from the origin remote. */
 function originWebUrl() {
@@ -8,7 +8,9 @@ function originWebUrl() {
   if (!remote.ok) {
     return '';
   }
-  const url = remote.stdout.trim();
+  // CI rewrites origin to embed a token (https://gitlab-ci-token:<token>@gitlab.com/…);
+  // that must not leak into a printed or published URL.
+  const url = stripCredentials(remote.stdout.trim());
   const sshMatch = /^git@([^:]+):(.+?)(\.git)?$/.exec(url);
   if (sshMatch) {
     return `https://${sshMatch[1]}/${sshMatch[2]}`;
